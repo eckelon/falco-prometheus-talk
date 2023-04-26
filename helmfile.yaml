@@ -1,0 +1,32 @@
+repositories:
+  - name: falcosecurity
+    url: https://falcosecurity.github.io/charts
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+
+releases:  
+  - name: falco
+    namespace: falco
+    chart: falcosecurity/falco
+    atomic: true
+    values:
+      - tty: true
+      - falcosidekick:
+          enabled: true
+          webui:
+            enabled: true
+  - name: prometheus
+    namespace: prometheus
+    chart: prometheus-community/kube-prometheus-stack
+    atomic: true
+    values:
+    - prometheus:
+        prometheusSpec:
+          additionalScrapeConfigs:
+            - job_name: 'falco'
+              scrape_interval: 30s
+              scrape_timeout: 10s
+              metrics_path: /metrics
+              scheme: http
+              static_configs:
+                - targets: ['falco-falcosidekick.falco:2801']
