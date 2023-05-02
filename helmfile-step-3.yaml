@@ -1,0 +1,56 @@
+repositories:
+  - name: falcosecurity
+    url: https://falcosecurity.github.io/charts
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+
+releases:  
+  - name: falco
+    namespace: falco
+    chart: falcosecurity/falco
+    atomic: true
+    values:
+      - tty: true
+      - falcosidekick:
+          enabled: true
+          webui:
+            enabled: true
+      - customRules:
+          custom-busybox-rule.yaml: |-
+            - rule: Terminal busybox instance in container
+              desc: A busybox instance was used as the entrypoint/exec point into a container with an attached terminal.
+              condition: >
+                spawned_process and container
+                and proc.name = "busybox"
+                and proc.tty != 0
+                and container_entrypoint
+                and not user_expected_terminal_shell_in_container_conditions
+              output: >
+                A BUSYBOX instance was spawned in a container with an attached terminal (user=%user.name user_loginuid=%user.loginuid %container.info
+                shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline pid=%proc.pid terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+              priority: WARNING
+              tags: [container, shell, mitre_execution, T1059]
+          exception_prometheus_rule.yaml: |-
+            - rule: Contact K8S API Server From Container
+              append: true
+              exceptions:
+                - name: local_prometheus_exception
+                  fields: [k8s.ns.name, k8s.pod.name, container.image.repository]
+                  comps: [=,startswith,in]
+                  values:
+                    - [prometheus, prometheus-grafana-, [quay.io/kiwigrid/k8s-sidecar]]
+  - name: prometheus
+    namespace: prometheus
+    chart: prometheus-community/kube-prometheus-stack
+    atomic: true
+    values:
+    - prometheus:
+        prometheusSpec:
+          additionalScrapeConfigs:
+            - job_name: 'falco'
+              scrape_interval: 30s
+              scrape_timeout: 10s
+              metrics_path: /metrics
+              scheme: http
+              static_configs:
+                - targets: ['falco-falcosidekick.falco:2801']
