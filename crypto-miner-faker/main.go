@@ -5,13 +5,21 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"runtime"
 	"strconv"
+	"sync"
 	"time"
 )
 
 func main() {
 
 	for {
+		randomNumber := rand.Intn(20) + 1
+		ctx, cancelPi := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelPi()
+		if randomNumber%10 == 0 {
+			go doPi(ctx)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -21,6 +29,32 @@ func main() {
 		time.Sleep(10 * time.Second)
 	}
 
+}
+
+func doPi(ctx context.Context) {
+
+	for {
+		select {
+		case <-ctx.Done():
+			time.Sleep(100 * time.Millisecond)
+		default:
+			fmt.Println("Starting pi decimals calculations...")
+			var wg sync.WaitGroup
+			numCPU := runtime.NumCPU()
+
+			wg.Add(numCPU)
+
+			for i := 0; i < numCPU; i++ {
+				go func() {
+					defer wg.Done()
+					pi := calcPiLeibniz(1000000000)
+					fmt.Printf("Calculated Pi: %.15f\n", pi)
+				}()
+			}
+
+			wg.Wait()
+		}
+	}
 }
 
 func doRequest(ctx context.Context) {
@@ -37,6 +71,18 @@ func doRequest(ctx context.Context) {
 		}
 	}
 
+}
+
+func calcPiLeibniz(iterations int64) float64 {
+	pi := 0.0
+	sign := 1.0
+
+	for i := int64(0); i < iterations; i++ {
+		pi += sign / (2*float64(i) + 1)
+		sign = -sign
+	}
+
+	return pi * 4
 }
 
 func selectRandomEndpoint() string {
