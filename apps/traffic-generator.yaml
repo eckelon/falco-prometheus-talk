@@ -1,0 +1,273 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  name: nginx
+spec: {}
+status: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-server
+  namespace: nginx
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - name: nginx-config
+            mountPath: /etc/nginx/conf.d/default.conf
+            subPath: nginx.conf
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: nginx-config
+          name: nginx-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx
+data:
+  nginx.conf: |
+    server {
+      listen       80;
+      server_name  localhost;
+      location / {
+          proxy_pass http://traffic-mirror:8080;
+      }
+      location /nginx_status {
+        stub_status on;
+        access_log  on;           
+        allow all;  # REPLACE with your access policy
+      }     
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: nginx
+spec:
+  selector:
+    app: nginx
+  ports:
+  - port: 8080
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-exporter
+  namespace: nginx
+spec:
+  selector:
+    matchLabels:
+      app: nginx-exporter
+  template:
+    metadata:
+      labels:
+        app: nginx-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+    spec:
+      containers:
+      - name: nginx-exporter
+        image: nginx/nginx-prometheus-exporter:0.5.0
+        args:
+          - "-nginx.scrape-uri=http://nginx:8080/nginx_status"
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 9113
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traffic-mirror
+  namespace: nginx
+spec:
+  selector:
+    app: mirror
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-mirror
+  namespace: nginx
+  labels:
+    app: mirror
+spec:
+  selector:
+    matchLabels:
+      app: mirror
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: mirror
+    spec:
+      containers:
+      - image: daviddetorres/traffic-mirror:latest
+        imagePullPolicy: IfNotPresent
+        name: traffic-mirror
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-generator
+  namespace: nginx
+  labels:
+    app: generator
+spec:
+  selector:
+    matchLabels:
+      app: generator
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: generator
+    spec:
+      containers:
+      - image: locustio/locust:0.14.4
+        imagePullPolicy: IfNotPresent
+        name: locust
+        env:
+        - name: LOCUSTFILE_PATH
+          value: "/mnt/locust/traffic-generator.py"
+        - name: TARGET_URL
+          value: "http://nginx:8080"
+        - name: LOCUST_OPTS
+          value: "--no-web -c 500 -r 100"
+        volumeMounts:
+        - mountPath: /mnt/locust
+          name: traffic-generator
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: traffic-generator
+        name: traffic-generator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traffic-generator
+  namespace: nginx
+data:
+  traffic-generator.py: |
+    from locust import Locust, TaskSet, task, between, HttpLocust
+
+    class MyTaskSet(TaskSet):
+        headers = {}
+
+        @task(100)
+        def NoLatencyLightWeight(self):
+            self.client.request("GET","/ok/0/500", 
+                                headers=self.headers)
+
+        @task(100)
+        def MediumLatencyLightWeight(self):
+            self.client.request("GET","/ok/500/500", 
+                                headers=self.headers)
+
+        @task(10)
+        def HighLatencyLightWeight(self):
+            self.client.request("GET","/ok/5000/500", 
+                                headers=self.headers)
+        
+        @task(100)
+        def NoLatencyMediumWeight(self):
+            self.client.request("GET","/ok/0/50000", 
+                                headers=self.headers)
+        
+        @task(100)
+        def MediumLatencyMediumWeight(self):
+            self.client.request("GET","/ok/500/50000", 
+                                headers=self.headers)
+        
+        @task(10)
+        def HighLatencyMediumWeight(self):
+            self.client.request("GET","/ok/5000/50000", 
+                                headers=self.headers)
+
+        @task(20)
+        def NoLatencyHeavyWeight(self):
+            self.client.request("GET","/ok/0/5000000", 
+                                headers=self.headers)
+        
+        @task(20)
+        def MediumLatencyHeavyWeight(self):
+            self.client.request("GET","/ok/500/5000000", 
+                                headers=self.headers)
+      
+        @task(10)
+        def HighLatencyHeavyWeight(self):
+            self.client.request("GET","/ok/5000/5000000", 
+                                headers=self.headers)
+        
+        @task(100)
+        def LightWeightPost(self):
+            self.client.request("POST","/ok/0/0",  
+                                data={"data":"0"*500}, 
+                                headers=self.headers)
+        
+        @task(100)
+        def MediumWeightPost(self):
+            self.client.request("POST","/ok/0/0", 
+                                data={"data":"0"*50000}, 
+                                headers=self.headers)
+        
+        @task(20)
+        def HeavyWeightPost(self):
+            self.client.request("POST","/ok/0/0", 
+                                data={"data":"0"*5000000}, 
+                                headers=self.headers)
+      
+        @task(15)
+        def Error404(self):
+          self.client.request("GET","/error/404", 
+                            headers=self.headers)
+      
+        @task(20)
+        def Error403(self):
+          self.client.request("GET","/error/403", 
+                            headers=self.headers)
+
+        @task(10)
+        def Error500(self):
+          self.client.request("GET","/error/500", 
+                            headers=self.headers)
+        
+        @task(10)
+        def Error503(self):
+          self.client.request("GET","/error/503", 
+                            headers=self.headers)
+
+    class TrafficMirrorUser(HttpLocust):
+        task_set = MyTaskSet    
+        wait_time = between(5, 15)

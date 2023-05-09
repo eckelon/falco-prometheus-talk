@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  name: ntpd
+spec: {}
+status: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ntp-server-example
+  name: ntp-server-example
+  namespace: ntpd
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: ntp-server-example
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: ntp-server-example
+    spec:
+      containers:
+      - image: cturra/ntp
+        name: ntp

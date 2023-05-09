@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: crypto-miner-faker
+  name: crypto-miner-faker
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: crypto-miner-faker
+  template:
+    metadata:
+      labels:
+        app: crypto-miner-faker
+    spec:
+      containers:
+      - image: quay.io/rhtvjjmiras/crypto-miner-faker:latest
+        imagePullPolicy: Always
+        name: crypto-miner-faker
