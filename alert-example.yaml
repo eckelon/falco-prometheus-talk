@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: falco-rules
+  namespace: prometheus
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: Falco Group
+    rules:
+    - alert: CriticalRuleTriggered
+      expr: sum by (k8s_ns_name, k8s_ns_name, rule, priority) (rate(falco_events{priority="Critical"}[30m])) > 0
+      for: 1m
+      labels:
+        severity: warning
+        source: falco
+      annotations:
+        summary: Critical Rule Triggered
+        description: "Critical Rule Triggered:  {{ $labels.rule }} in namespace {{ $labels.k8s_ns_namespace}}. ({{ $value }} ocurrences"
+
