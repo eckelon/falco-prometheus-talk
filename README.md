@@ -2,7 +2,7 @@
 
 ![screenshot taken from the youtube video](.screenshot/Falco+Prometheus-Talk.png)
 
-This is the configurations used in [this Cloud Native Live talk](https://www.youtube.com/live/AeeXSm0Zzfk?feature=share)
+These are the configurations used in [this Cloud Native Live talk](https://www.youtube.com/live/AeeXSm0Zzfk?feature=share)
 
 ## Runbook
 
