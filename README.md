@@ -4,6 +4,8 @@
 
 This is the configurations used in [this Cloud Native Live talk](https://www.youtube.com/live/AeeXSm0Zzfk?feature=share)
 
+## Runbook
+
 You can install Prometheus and Falco using helmfile. There are four steps in case you wan't to do it in the same order we did in the talk.
 
 ```
@@ -34,4 +36,12 @@ Other useful scripts are
 - `get-grafana-creds.sh` to get Grafana credentials for the UI.
 
 Also, you can import the dashboard we used in the talk in Grafana. It's in the `dashboards` directory. 
+
+## References
+
+- [How to monitor nginx in Kubernetes with Prometheus](https://dev.to/eckelon/how-to-monitor-nginx-in-kubernetes-with-prometheus-j5f)
+- [Getting started with PromQL](https://dev.to/eckelon/getting-started-with-promql-includes-cheatsheet-3a1d)
+- [PromCat.io - The Easy Button for Prometheus](https://promcat.io)
+- [Try Falco](https://falco.org/docs/getting-started/try-falco/)
+- [Extend Falco outputs with falcosidekick](https://falco.org/blog/extend-falco-outputs-with-falcosidekick/)
 
